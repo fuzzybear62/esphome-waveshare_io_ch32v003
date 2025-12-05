@@ -1,9 +1,20 @@
 # Waveshare IO CH32V003 Component for ESPHome
 
+[![ESPHome](https://img.shields.io/badge/ESPHome-Component-red)](https://esphome.io/)
+
 A custom ESPHome component for the **Waveshare IO Expansion Board** based on the **CH32V003** RISC-V microcontroller.
 
-**Hardware Support:**
-This component has been specifically developed for and tested on the **Waveshare ESP32-S3 7" Display version B (1024x600)**.
+---
+
+## ⚠️ Hardware Compatibility Note
+
+This component has been developed and tested **exclusively** on the following configuration:
+
+* **Board:** Waveshare ESP32-S3 7" Display version B (1024x600)
+
+**Note:** Other hardware combinations, different ESP32 boards have **not** been tested and may require different tuning or power configurations.
+
+---
 
 ## Installation
 

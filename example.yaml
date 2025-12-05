@@ -89,7 +89,8 @@ logger:
 external_components:
   - source:
       type: git
-      url: https://github.com/fuzzybear62/esphome-waveshare_io_ch32v003
+      ref:  main
+      url:  https://github.com/fuzzybear62/esphome-waveshare_io_ch32v003
     components: [ waveshare_io_ch32v003 ]
 
 waveshare_io_ch32v003:
