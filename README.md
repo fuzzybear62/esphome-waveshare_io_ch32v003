@@ -1,7 +1,3 @@
-Here is the corrected and updated `README.md` tailored to your specifications, including the correct repository details, I2C address, and the specific hardware examples provided.
-
------
-
 # Waveshare IO CH32V003 Component for ESPHome
 
 A custom ESPHome component for the **Waveshare IO Expansion Board** based on the **CH32V003** RISC-V microcontroller.
