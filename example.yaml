@@ -1,0 +1,222 @@
+# =====================================
+# === WAVESHARE 7" vers B 1024x600 ===
+# =====================================
+
+substitutions:
+  name:                               "ws7br1"
+  friendly_name:                      "Waveshare 7B inches 1024x600 (7br1)"
+  project_name:                       "chipcolate.sensor"
+  project_version:                    "1.0.0"
+
+esp32:
+  board:          esp32-s3-devkitc-1
+  variant:        ESP32S3
+  cpu_frequency:  240MHz
+  flash_size:     16MB
+  framework:
+    type:         esp-idf
+    # --- Overclock Flash & PSRAM to 120MHz ---
+    # advanced:
+    #   enable_idf_experimental_features: true
+    sdkconfig_options:
+      # --- Performance System ---
+      CONFIG_FREERTOS_HZ:                    "1000"
+      CONFIG_ESP_DEFAULT_CPU_FREQ_MHZ_240:    "y"
+      CONFIG_ESP32S3_DATA_CACHE_16KB:         "n"
+      CONFIG_ESP32S3_DATA_CACHE_32KB:         "n"
+      CONFIG_ESP32S3_DATA_CACHE_64KB:         "y"             # Max cache for Octal PSRAM
+      CONFIG_ESP32S3_DATA_CACHE_LINE_64B:     "y"             # Cache alignment
+      CONFIG_SPIRAM_MODE_OCT:                 "y"             # PSRAM in Octal mode
+      CONFIG_ESPTOOLPY_FLASHMODE_QIO:         "y"             # Flash in QIO mode
+      
+      # --- Compiler Optimization ---
+      CONFIG_COMPILER_OPTIMIZATION_PERF:      "y"             # Compile for speed instead of size
+      
+      # --- Memory Placement ---
+      CONFIG_SPIRAM_FETCH_INSTRUCTIONS:       "y"             # Move non-critical code to PSRAM to free IRAM for LVGL
+      CONFIG_SPIRAM_RODATA:                   "y"             # Place read-only data (like fonts/images) in PSRAM
+      
+      # --- LVGL Specific ---
+      CONFIG_LV_MEM_CUSTOM:                   "y"             # Delegate LvGL memory allocation to ESP-IDF/FreeRTOS
+      CONFIG_LV_ATTRIBUTE_FAST_MEM_USE_IRAM:  "y"             # Use IRAM for LVGL drawing functions
+      CONFIG_LV_MEMCPY_MEMSET_STD:            "y"             # Use ESP hardware-optimized memcpy/memset
+      
+      # --- Multicore Affinity ---
+      CONFIG_ESP_MAIN_TASK_AFFINITY_CPU1:     "y"             # Move main loop (and LVGL) to Core 1
+
+      # --- Overclock Flash & PSRAM to 120MHz ---
+      # CONFIG_IDF_EXPERIMENTAL_FEATURES:      "y"
+      # CONFIG_ESPTOOLPY_FLASHFREQ_120M:       "y"
+      # CONFIG_SPIRAM_SPEED_120M:              "y"
+
+psram:
+  mode:  octal
+  speed: 80MHz
+
+i2c:
+  sda: GPIO8
+  scl: GPIO9
+  scan: true
+  frequency: 400khz
+  id: bus_a
+
+esphome:
+  name: "${name}"
+  friendly_name: "${friendly_name}"
+  project:
+    name: "${project_name}"
+    version: "${project_version}"
+  platformio_options:
+    #board_upload.maximum_ram_size: 524288
+    build_flags:
+      - "-DBOARD_HAS_PSRAM"
+      - "-DLV_CONF_INCLUDE_SIMPLE"
+      - "-DLV_USE_CHART=1"
+      # Ottimizzazione LVGL per Frame Rate
+      - "-DLV_MEM_CUSTOM=1"
+      - "-DLV_MEMCPY_MEMSET_STD=1"
+      #- "-DCONFIG_IDF_EXPERIMENTAL_FEATURES=1"
+
+    #board_build.f_flash: 120000000L
+    board_build.f_flash: 80000000L  
+    board_build.flash_mode: qio      
+    board_build.arduino.memory_type: qio_opi
+
+logger:
+  level: DEBUG     # WARNING for production units
+  baud_rate: 0     # Disable debug on serial port
+
+external_components:
+  - source:
+      type: git
+      url: https://github.com/fuzzybear62/esphome-waveshare_io_ch32v003
+    components: [ waveshare_io_ch32v003 ]
+
+waveshare_io_ch32v003:
+  id: waveshare_io_hub
+  i2c_id: bus_a
+  address: 0x24
+
+output:
+  - platform: waveshare_io_ch32v003
+    id: wave_io_pwm_output
+    inverted: true
+    zero_means_zero: true
+    waveshare_io_ch32v003_id: waveshare_io_hub
+    safe_pwm_levels:
+      min_value: 0
+      max_value: 247
+    # OPTION B
+      # min_power: 0%
+      # max_power: 97% # ~247 su 255
+
+light:
+  - platform: monochromatic
+    output: wave_io_pwm_output
+    name: "Display Backlight"
+    icon: mdi:lightbulb-on
+    id: display_backlight
+    restore_mode: ALWAYS_ON
+    default_transition_length: 0ms
+
+touchscreen:
+  platform: gt911
+  id: main_touch
+  display: main_display
+  i2c_id: bus_a
+  interrupt_pin: GPIO4
+  reset_pin:
+    waveshare_io_ch32v003: waveshare_io_hub
+    number: 1
+    mode: OUTPUT
+  on_touch:
+    - lambda: |-
+        ESP_LOGD("Touch", "Touch detected at x=%d, y=%d", touch.x, touch.y);
+  on_update:
+    - lambda: |-
+        for (auto touch: touches)  {
+            if (touch.state <= 2) {
+              ESP_LOGD("Touch points:", "id=%d x=%d, y=%d x.raw=%d, y.raw=%d", touch.id, touch.x, touch.y, touch.x_raw, touch.y_raw);
+            }
+        }
+
+canbus:
+  - platform: esp32_can
+    id: ws_can_bus
+    tx_pin: GPIO20  
+    rx_pin: GPIO19
+    can_id: 4
+    bit_rate: 500kbps
+
+#-------------------------------------------
+# Display
+#-------------------------------------------
+display:
+  - platform: rpi_dpi_rgb
+    id: main_display
+    update_interval: never
+    auto_clear_enabled: false
+    color_order: RGB
+    pclk_frequency: 30MHZ
+    dimensions:
+      width: 1024
+      height: 600
+    de_pin:
+      number: 5
+    hsync_pin:
+      number: 46
+      ignore_strapping_warning: true
+    vsync_pin:
+      number: 3
+      ignore_strapping_warning: true
+    pclk_pin: 7
+    pclk_inverted: true
+    reset_pin:
+      waveshare_io_ch32v003: waveshare_io_hub
+      number: 3
+    hsync_back_porch:   152
+    hsync_front_porch:   48
+    hsync_pulse_width:  162
+    vsync_back_porch:    13
+    vsync_front_porch:    3
+    vsync_pulse_width:   45
+    data_pins:
+      red:
+        - 1         #r3
+        - 2         #r4
+        - 42        #r5
+        - 41        #r6
+        - 40        #r7
+      blue:
+        - 14        #b3
+        - 38        #b4
+        - 18        #b5
+        - 17        #b6
+        - 10        #b7
+      green:
+        - 39        #g2
+        - 0         #g3
+        - 45        #g4
+        - 48        #g5
+        - 47        #g6
+        - 21        #g7
+
+switch:
+  - platform: gpio
+    name: "Backlight Switch"
+    id: backlight_switch
+    internal: true               
+    pin:
+      waveshare_io_ch32v003: waveshare_io_hub
+      number: 2
+      mode: OUTPUT
+    restore_mode: ALWAYS_ON
+
+sensor:
+  - platform: waveshare_io_ch32v003
+    name: "Battery level"
+    waveshare_io_ch32v003_id: waveshare_io_hub
+    id: wave_adc
+    # Convert ADC value to voltage (10-bit ADC, 3.3V reference, and 3:1 voltage divider)
+    # value = adc * 3 * 3.3V / 1023.0
+    reference_voltage: 9.9  # so returned value is ADC * 9.9 / 1023.0
