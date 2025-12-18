@@ -12,7 +12,7 @@ class WaveshareIOCH32V003Component : public Component,
                                      public i2c::I2CDevice,
                                      public gpio_expander::CachedGpioExpander<uint8_t, 8> {
  public:
-  // Explicit constructor for safe initialization
+  // Constructor
   WaveshareIOCH32V003Component();
 
   // --- ESPHome Lifecycle Methods ---
@@ -31,7 +31,8 @@ class WaveshareIOCH32V003Component : public Component,
  protected:
   friend class WaveshareIOCH32V003GPIOPin;
 
-  bool is_ready_; // Initialized in constructor
+  // Renamed to ensure no cache conflicts and clear meaning
+  bool hw_init_done_{false};
   
   // --- Hardware Implementation ---
   bool digital_read_hw(uint8_t pin) override;
@@ -45,6 +46,7 @@ class WaveshareIOCH32V003Component : public Component,
   bool read_registers_with_retry_(uint8_t a_register, uint8_t *data, uint8_t len);
 
   // --- Local State Masks ---
+  // Initialized to 0x00 (Input/Low) by default
   uint8_t mode_mask_{0x00};    
   uint8_t output_mask_{0x00};  
   uint8_t input_mask_{0x00};   

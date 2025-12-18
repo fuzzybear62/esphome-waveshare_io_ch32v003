@@ -22,8 +22,9 @@ static const char *const TAG = "waveshare_io_ch32v003";
 
 // --- Constructor ---
 WaveshareIOCH32V003Component::WaveshareIOCH32V003Component() {
-  // Ensure the ready flag is false from the very beginning
-  this->is_ready_ = false;
+  // Explicitly set the flag to false.
+  // This ensures that any calls to pin_mode BEFORE setup/loop will NOT write to hardware.
+  this->hw_init_done_ = false;
 }
 
 // --- Helpers for I2C Robustness ---
@@ -56,30 +57,29 @@ bool WaveshareIOCH32V003Component::read_registers_with_retry_(uint8_t a_register
 void WaveshareIOCH32V003Component::setup() {
   ESP_LOGCONFIG(TAG, "Setting up Waveshare IO CH32V003...");
   
-  // Initialize internal masks to a safe state (Input/Low).
-  // IMPORTANT: Do NOT write to I2C here. We wait for the first loop().
-  this->mode_mask_ = 0x00;
-  this->output_mask_ = 0x00;
+  // Note: We do NOT reset mode_mask_ or output_mask_ here anymore.
+  // This is because pin_mode() might have been called by ESPHome's initialization 
+  // sequence BEFORE setup(), populating the masks with the correct config.
   
-  // is_ready_ remains false until the loop() successfully syncs with hardware.
+  // hw_init_done_ remains false. We wait for loop() to sync with hardware.
 }
 
 void WaveshareIOCH32V003Component::loop() { 
   // --- Deferred Initialization ---
-  // Runs only once, when the I2C bus is guaranteed to be ready.
-  if (!this->is_ready_) {
+  // This block runs only once, when the I2C bus is guaranteed to be ready.
+  if (!this->hw_init_done_) {
     ESP_LOGD(TAG, "Performing deferred hardware initialization...");
     
-    // Attempt to write the accumulated configurations to hardware
+    // Write the configurations accumulated in the masks to the actual hardware
     bool step1 = this->write_gpio_modes_();
     bool step2 = this->write_gpio_outputs_();
 
     if (step1 && step2) {
-      this->is_ready_ = true;
+      this->hw_init_done_ = true;
       ESP_LOGI(TAG, "Waveshare IO hardware synced and ready.");
       this->status_clear_warning();
     } else {
-      // If it fails, we do not crash; we warn and retry on the next loop iteration.
+      // If I2C fails, warn and retry next loop. Do not crash.
       this->status_set_warning("Waiting for I2C bus...");
       return; 
     }
@@ -102,17 +102,20 @@ void WaveshareIOCH32V003Component::dump_config() {
 void WaveshareIOCH32V003Component::pin_mode(uint8_t pin, gpio::Flags flags) {
   if (pin >= MAX_PINS) return;
 
-  // Update only the internal mask
+  // ALWAYS update the internal mask, so we remember the configuration
   if (flags & gpio::FLAG_OUTPUT) {
     this->mode_mask_ |= (1 << pin);
   } else {
     this->mode_mask_ &= ~(1 << pin);
   }
   
-  // Write to hardware ONLY if deferred initialization is complete
-  if (this->is_ready_) {
-      this->write_gpio_modes_();
+  // CRITICAL: Prevent writing to I2C before initialization is complete.
+  // This fixes the "i2c bus not initialized" errors at boot.
+  if (!this->hw_init_done_) {
+      return; 
   }
+
+  this->write_gpio_modes_();
 }
 
 // --- Hardware Operations (Low Level) ---
@@ -130,7 +133,8 @@ bool WaveshareIOCH32V003Component::write_gpio_outputs_() {
 bool WaveshareIOCH32V003Component::digital_read_hw(uint8_t pin) {
   if (pin >= MAX_PINS) return false;
 
-  if (this->is_failed()) {
+  // If not ready, return cached value to avoid I2C errors
+  if (!this->hw_init_done_ || this->is_failed()) {
     return (this->input_mask_ & (1 << pin)) != 0;
   }
 
@@ -149,6 +153,7 @@ void WaveshareIOCH32V003Component::digital_write_hw(uint8_t pin, bool value) {
   if (pin >= MAX_PINS) return;
   if (this->is_failed()) return;
 
+  // Update mask
   if (value) {
     this->output_mask_ |= (1 << pin);
   } else {
@@ -157,13 +162,15 @@ void WaveshareIOCH32V003Component::digital_write_hw(uint8_t pin, bool value) {
 
   ESP_LOGD(TAG, "Digital Write Pin %u -> %u", pin, value);
 
-  // Write to hardware ONLY if deferred initialization is complete
-  if (this->is_ready_) {
-    if (!this->write_register_with_retry_(IO_REG_OUTPUT, this->output_mask_)) {
-      this->status_set_warning("Failed to write GPIO output");
-    } else {
-      this->status_clear_warning();
-    }
+  // Guard against early writes
+  if (!this->hw_init_done_) {
+    return;
+  }
+
+  if (!this->write_register_with_retry_(IO_REG_OUTPUT, this->output_mask_)) {
+    this->status_set_warning("Failed to write GPIO output");
+  } else {
+    this->status_clear_warning();
   }
 }
 
@@ -175,21 +182,23 @@ bool WaveshareIOCH32V003Component::digital_read_cache(uint8_t pin) {
 // --- Special Functions ---
 
 uint16_t WaveshareIOCH32V003Component::get_adc_value() {
-  if (this->is_failed()) return 0;
+  if (this->is_failed() || !this->hw_init_done_) return 0;
+  
   uint8_t data[2];
   if (!this->read_registers_with_retry_(IO_REG_ADC, data, 2)) return 0; 
   return (data[1] << 8) | data[0];
 }
 
 uint8_t WaveshareIOCH32V003Component::get_interrupt_status() {
-  if (this->is_failed()) return 0;
+  if (this->is_failed() || !this->hw_init_done_) return 0;
   uint8_t data = 0;
   this->read_registers_with_retry_(IO_REG_INTERRUPT, &data, 1);
   return data;
 }
 
 void WaveshareIOCH32V003Component::set_pwm_value(uint8_t value) {
-  if (this->is_failed()) return;
+  if (this->is_failed() || !this->hw_init_done_) return;
+  
   uint8_t data[2] = {IO_REG_PWM, value};
   for(uint8_t i=0; i<MAX_RETRIES; i++) {
     if (this->write_bytes(data[0], &data[1], 1)) return;
