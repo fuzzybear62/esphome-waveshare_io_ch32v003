@@ -252,7 +252,7 @@ void WaveshareIOCH32V003Component::set_pwm_value(uint8_t value) {
   }
 }
 
-float WaveshareIOCH32V003Component::get_setup_priority() const { return setup_priority::IO; }
+float WaveshareIOCH32V003Component::get_setup_priority() const { return setup_priority::DATA; }
 float WaveshareIOCH32V003Component::get_loop_priority() const { return 9.0f; } 
 
 // --- GPIOPin Implementation ---
