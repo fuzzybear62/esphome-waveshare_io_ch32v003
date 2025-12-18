@@ -64,15 +64,10 @@ async def to_code(config):
     await cg.register_component(var, config)
     await i2c.register_i2c_device(var, config)
 
-    # --- KEY FIX ---
-    # Register ALL source files here as a single library.
-    # PlatformIO will treat them as one local package.
-    # The C++ preprocessor guards (#ifdef) will ensure ignored files are effectively empty.
-    cg.add_library("waveshare_io_ch32v003", None, [
-        "waveshare_io_ch32v003.cpp",
-        "waveshare_io_ch32v003_output.cpp",
-        "waveshare_io_ch32v003_sensor.cpp"
-    ])
+    # RIMOSSO: cg.add_library(...)
+    # Non è necessario elencare i file sorgente locali. 
+    # PlatformIO compilerà automaticamente tutti i .cpp nella cartella del componente.
+    # Le guardie #ifdef nei file C++ gestiranno l'inclusione logica.
 
 def validate_mode(value):
     """
