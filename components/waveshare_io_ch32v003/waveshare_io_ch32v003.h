@@ -31,7 +31,7 @@ class WaveshareIOCH32V003Component : public Component,
  protected:
   friend class WaveshareIOCH32V003GPIOPin;
 
-  // Renamed to ensure no cache conflicts and clear meaning
+  // Tracks if the hardware has been successfully initialized via I2C
   bool hw_init_done_{false};
   
   // --- Hardware Implementation ---
@@ -46,9 +46,10 @@ class WaveshareIOCH32V003Component : public Component,
   bool read_registers_with_retry_(uint8_t a_register, uint8_t *data, uint8_t len);
 
   // --- Local State Masks ---
-  // Initialized to 0x00 (Input/Low) by default
-  uint8_t mode_mask_{0x00};    
-  uint8_t output_mask_{0x00};  
+  // Default to 0xFF (All Output / All High) as required for connected I2C devices to start.
+  // Specific pins defined in YAML will overwrite these bits before the first hardware write.
+  uint8_t mode_mask_{0xFF};    
+  uint8_t output_mask_{0xFF};  
   uint8_t input_mask_{0x00};   
 
   bool write_gpio_modes_();

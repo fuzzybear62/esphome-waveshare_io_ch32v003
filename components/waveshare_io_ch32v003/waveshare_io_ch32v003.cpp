@@ -22,7 +22,7 @@ static const char *const TAG = "waveshare_io_ch32v003";
 
 // --- Constructor ---
 WaveshareIOCH32V003Component::WaveshareIOCH32V003Component() {
-  // Explicitly set the flag to false.
+  // Explicitly set the init flag to false.
   // This ensures that any calls to pin_mode BEFORE setup/loop will NOT write to hardware.
   this->hw_init_done_ = false;
 }
@@ -57,9 +57,9 @@ bool WaveshareIOCH32V003Component::read_registers_with_retry_(uint8_t a_register
 void WaveshareIOCH32V003Component::setup() {
   ESP_LOGCONFIG(TAG, "Setting up Waveshare IO CH32V003...");
   
-  // Note: We do NOT reset mode_mask_ or output_mask_ here anymore.
-  // This is because pin_mode() might have been called by ESPHome's initialization 
-  // sequence BEFORE setup(), populating the masks with the correct config.
+  // We use the default masks (0xFF) defined in the header.
+  // We do not reset them here, preserving any configuration done by 
+  // pin_mode() during the boot process (before setup runs).
   
   // hw_init_done_ remains false. We wait for loop() to sync with hardware.
 }
@@ -70,7 +70,7 @@ void WaveshareIOCH32V003Component::loop() {
   if (!this->hw_init_done_) {
     ESP_LOGD(TAG, "Performing deferred hardware initialization...");
     
-    // Write the configurations accumulated in the masks to the actual hardware
+    // Write the accumulated configurations (defaults + YAML overrides) to hardware
     bool step1 = this->write_gpio_modes_();
     bool step2 = this->write_gpio_outputs_();
 
@@ -110,7 +110,6 @@ void WaveshareIOCH32V003Component::pin_mode(uint8_t pin, gpio::Flags flags) {
   }
   
   // CRITICAL: Prevent writing to I2C before initialization is complete.
-  // This fixes the "i2c bus not initialized" errors at boot.
   if (!this->hw_init_done_) {
       return; 
   }
