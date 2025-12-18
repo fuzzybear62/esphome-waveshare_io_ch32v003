@@ -105,3 +105,7 @@ async def to_code(config):
     
     # Set the calculated safe range in the C++ object
     cg.add(var.set_pwm_safe_range(min_pwm, max_pwm))
+
+    # --- ADDED FOR MODULAR COMPILATION ---
+    # Only compile the output source file if this component is actually used.
+    cg.add_library("waveshare_io_ch32v003_output", None, ["waveshare_io_ch32v003_output.cpp"])

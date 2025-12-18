@@ -64,6 +64,12 @@ async def to_code(config):
     await cg.register_component(var, config)
     await i2c.register_i2c_device(var, config)
 
+    # --- MODIFICA FONDAMENTALE ---
+    # Registriamo SOLO il sorgente principale ("Core").
+    # I file _sensor.cpp e _output.cpp NON sono inclusi qui. 
+    # Verranno inclusi dai rispettivi file sensor.py e output.py solo se usati.
+    cg.add_library("waveshare_io_ch32v003", None, ["waveshare_io_ch32v003.cpp"])
+
 def validate_mode(value):
     """
     Validates the GPIO mode configuration.

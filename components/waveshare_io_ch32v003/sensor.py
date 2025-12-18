@@ -83,3 +83,7 @@ async def to_code(config):
 
     # Set the configured reference voltage for calculation
     cg.add(var.set_reference_voltage(config[CONF_REFERENCE_VOLTAGE]))
+
+    # --- ADDED FOR MODULAR COMPILATION ---
+    # Only compile the sensor source file if this component is actually used.
+    cg.add_library("waveshare_io_ch32v003_sensor", None, ["waveshare_io_ch32v003_sensor.cpp"])
