@@ -190,20 +190,25 @@ uint16_t WaveshareIOCH32V003Component::get_adc_value() {
 
 uint8_t WaveshareIOCH32V003Component::get_interrupt_status() {
   if (this->is_failed() || !this->hw_init_done_) return 0;
+  
   uint8_t data = 0;
-  this->read_registers_with_retry_(IO_REG_INTERRUPT, &data, 1);
-  return data;
+  // Attempt to read the interrupt register.
+  // NOTE: We assume reading this register clears the interrupt flag on the CH32V003 side.
+  if (this->read_registers_with_retry_(IO_REG_INTERRUPT, &data, 1)) {
+    return data;
+  }
+  
+  return 0;
 }
 
 void WaveshareIOCH32V003Component::set_pwm_value(uint8_t value) {
+  // Check for failure or incomplete init
   if (this->is_failed() || !this->hw_init_done_) return;
   
-  uint8_t data[2] = {IO_REG_PWM, value};
-  for(uint8_t i=0; i<MAX_RETRIES; i++) {
-    if (this->write_bytes(data[0], &data[1], 1)) return;
-    delay(RETRY_DELAY_MS);
+  // Use the helper helper for consistency and retry logic
+  if (!this->write_register_with_retry_(IO_REG_PWM, value)) {
+    ESP_LOGW(TAG, "Failed to set PWM value");
   }
-  ESP_LOGW(TAG, "Failed to set PWM value");
 }
 
 float WaveshareIOCH32V003Component::get_setup_priority() const { return setup_priority::DATA; }
