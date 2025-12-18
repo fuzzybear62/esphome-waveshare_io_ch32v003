@@ -64,11 +64,15 @@ async def to_code(config):
     await cg.register_component(var, config)
     await i2c.register_i2c_device(var, config)
 
-    # --- MODIFICA FONDAMENTALE ---
-    # Registriamo SOLO il sorgente principale ("Core").
-    # I file _sensor.cpp e _output.cpp NON sono inclusi qui. 
-    # Verranno inclusi dai rispettivi file sensor.py e output.py solo se usati.
-    cg.add_library("waveshare_io_ch32v003", None, ["waveshare_io_ch32v003.cpp"])
+    # --- KEY FIX ---
+    # Register ALL source files here as a single library.
+    # PlatformIO will treat them as one local package.
+    # The C++ preprocessor guards (#ifdef) will ensure ignored files are effectively empty.
+    cg.add_library("waveshare_io_ch32v003", None, [
+        "waveshare_io_ch32v003.cpp",
+        "waveshare_io_ch32v003_output.cpp",
+        "waveshare_io_ch32v003_sensor.cpp"
+    ])
 
 def validate_mode(value):
     """

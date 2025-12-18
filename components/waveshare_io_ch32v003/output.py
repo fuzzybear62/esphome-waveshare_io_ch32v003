@@ -23,9 +23,6 @@ from . import (
 DEPENDENCIES = ["waveshare_io_ch32v003"]
 
 # --- Class Definition ---
-# Defines the C++ class hierarchy.
-# Inherits from FloatOutput for standard output entity behavior.
-# Inherits from Component to handle setup() and loop() lifecycle methods.
 WaveshareIOCH32V003Output = waveshare_io_ch32v003_ns.class_(
     "WaveshareIOCH32V003Output",
     output.FloatOutput,
@@ -51,11 +48,6 @@ def validate_safe_levels(cfg):
     return cfg
 
 # --- Configuration Schema ---
-# Extends the standard Float Output schema.
-# Adds requirements for the parent component linkage.
-# Supports two modes of configuration:
-# 1. Standard: min_power and max_power as percentages (0.0 - 1.0).
-# 2. Raw: safe_pwm_levels with explicit 0-255 integer limits.
 CONFIG_SCHEMA = cv.All(
     output.FLOAT_OUTPUT_SCHEMA.extend(
         {
@@ -93,8 +85,7 @@ async def to_code(config):
     # Registers the variable as a Component to ensure setup() and dump_config() are called
     await cg.register_component(var, config)
     
-    # Determine PWM limits: Priority is given to raw 'safe_pwm_levels' if defined.
-    # Otherwise, converts standard percentage power to 0-255 range.
+    # Determine PWM limits
     if CONF_SAFE_PWM_LEVELS in config:
         raw_config = config[CONF_SAFE_PWM_LEVELS]
         min_pwm = raw_config[CONF_MIN_VALUE]
@@ -105,7 +96,3 @@ async def to_code(config):
     
     # Set the calculated safe range in the C++ object
     cg.add(var.set_pwm_safe_range(min_pwm, max_pwm))
-
-    # --- ADDED FOR MODULAR COMPILATION ---
-    # Only compile the output source file if this component is actually used.
-    cg.add_library("waveshare_io_ch32v003_output", None, ["waveshare_io_ch32v003_output.cpp"])
