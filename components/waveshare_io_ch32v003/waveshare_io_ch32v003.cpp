@@ -83,38 +83,41 @@ void WaveshareIOCH32V003Component::setup() {
 
   // SAFE LOGIC:
   // Initialize all pins as INPUT (0) to avoid short circuits at boot.
-  // Pins used (like Backlight or Reset) will be configured immediately after
-  // by their respective components (Switch/Output) thanks to restore_mode.
+  // Previous code used 0xFF which meant OUTPUT HIGH - Dangerous!
+  // We use 0x00 to ensure everything starts as Input/Low.
   this->mode_mask_ = 0xFF;
   this->output_mask_ = 0xFF;
 
-  // Initial write to hardware registers (with safety retries)
-  // Ensures the hardware state matches the internal mask state on boot.
-  bool step1 = this->write_gpio_modes_();
-  bool step2 = this->write_gpio_outputs_();
-
-  if (!step1 || !step2) {
-    ESP_LOGE(TAG, "Failed to initialize Waveshare IO expander (I2C comms failed)");
-    this->mark_failed();
-    return;
-  }
-
-  ESP_LOGCONFIG(TAG, "Initialization complete. Mode Mask: 0x00 (Safe)");
-
-  this->is_ready_ = true;
+  // IMPORTANT: We do NOT write to hardware here anymore.
+  // We defer initialization to the first loop() call to ensure
+  // the I2C bus is fully initialized by the ESPHome framework.
+  
+  // is_ready_ remains false until the first loop success.
 }
 
 void WaveshareIOCH32V003Component::loop() { 
+  // 1. Deferred Initialization Logic
+  // This block runs only once, the first time loop() is called and I2C is ready.
+  if (!this->is_ready_) {
+      ESP_LOGD(TAG, "Performing deferred hardware initialization...");
+      
+      bool step1 = this->write_gpio_modes_();
+      bool step2 = this->write_gpio_outputs_();
+
+      if (step1 && step2) {
+          this->is_ready_ = true;
+          ESP_LOGI(TAG, "Waveshare IO hardware synced and ready.");
+          this->status_clear_warning();
+      } else {
+          // If I2C fails, we don't crash, but we warn and retry next loop.
+          this->status_set_warning("Waiting for I2C bus to become ready...");
+          return; 
+      }
+  }
+
+  // 2. Standard Loop Logic
   // Clears the read cache at the start of every loop to ensure fresh data for this cycle.
   this->reset_pin_cache_(); 
-}
-
-void WaveshareIOCH32V003Component::dump_config() {
-  ESP_LOGCONFIG(TAG, "WaveshareIO CH32V003:");
-  LOG_I2C_DEVICE(this)
-  if (this->is_failed()) {
-    ESP_LOGE(TAG, "Communication with IO Expander failed!");
-  }
 }
 
 // --- Pin Mode Management ---
