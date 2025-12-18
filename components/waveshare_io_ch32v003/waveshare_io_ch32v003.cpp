@@ -100,6 +100,8 @@ void WaveshareIOCH32V003Component::setup() {
   }
 
   ESP_LOGCONFIG(TAG, "Initialization complete. Mode Mask: 0x00 (Safe)");
+
+  this->is_ready_ = true;
 }
 
 void WaveshareIOCH32V003Component::loop() { 
@@ -133,8 +135,10 @@ void WaveshareIOCH32V003Component::pin_mode(uint8_t pin, gpio::Flags flags) {
     this->mode_mask_ &= ~(1 << pin);
   }
   
-  // Apply hardware change immediately to reflect the new configuration
-  this->write_gpio_modes_();
+  // Apply hardware change immediately to reflect the new configuration only when i2c is ready
+  if (this->is_ready_) {
+      this->write_gpio_modes_();
+  }
 }
 
 // --- Hardware Operations (Low Level) ---
@@ -191,11 +195,13 @@ void WaveshareIOCH32V003Component::digital_write_hw(uint8_t pin, bool value) {
   // DEBUG LOG: Track what we are writing
   ESP_LOGD(TAG, "Digital Write Pin %u -> %u (Mask: 0x%02X)", pin, value, this->output_mask_);
 
-  // Hardware Write
-  if (!this->write_register_with_retry_(IO_REG_OUTPUT, this->output_mask_)) {
-    this->status_set_warning("Failed to write GPIO output");
-  } else {
-    this->status_clear_warning();
+  // Hardware Write only if i2C bus is ready
+  if (this->is_ready_) {
+    if (!this->write_register_with_retry_(IO_REG_OUTPUT, this->output_mask_)) {
+      this->status_set_warning("Failed to write GPIO output");
+    } else {
+      this->status_clear_warning();
+    }
   }
 }
 

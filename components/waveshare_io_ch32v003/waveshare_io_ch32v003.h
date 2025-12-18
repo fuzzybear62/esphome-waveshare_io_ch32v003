@@ -57,6 +57,8 @@ class WaveshareIOCH32V003Component : public Component,
  protected:
   friend class WaveshareIOCH32V003GPIOPin;
 
+  bool is_ready_{false};
+  
   // --- Hardware Implementation (CachedGpioExpander overrides) ---
   
   /**
